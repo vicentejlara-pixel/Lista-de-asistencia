@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Asistencia QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3d;
+    --accent: #6c63ff;
+    --accent2: #ff6b9d;
+    --accent3: #00d4aa;
+    --text: #e8e8f0;
+    --text2: #8888aa;
+    --success: #00d4aa;
+    --warning: #ffd166;
+    --danger: #ff6b6b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, #0d0d1a 0%, #161628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #fff 0%, var(--text2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo span {
+    display: block;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+    font-weight: 400;
+    -webkit-text-fill-color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .header-actions { display: flex; gap: 10px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 16px 32px 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tab {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+    position: relative;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .tab:hover { color: var(--text); background: var(--surface2); }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  .tab .badge {
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Main content */
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(108,99,255,0.5), transparent);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* Grid layout */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  /* Form elements */
+  .form-group { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+  }
+
+  select option { background: var(--surface2); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    color: white;
+    box-shadow: 0 4px 15px rgba(108,99,255,0.3);
+  }
+
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(108,99,255,0.4); }
+
+  .btn-success {
+    background: linear-gradient(135deg, var(--accent3), #00b894);
+    color: white;
+    box-shadow: 0 4px 15px rgba(0,212,170,0.3);
+  }
+
+  .btn-success:hover { transform: translateY(-1px); }
+
+  .btn-danger {
+    background: linear-gradient(135deg, var(--danger), #c0392b);
+    color: white;
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* QR Section */
+  .qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  #qr-code {
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    width: fit-content;
+  }
+
+  .qr-url {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+    background: var(--surface2);
+    padding: 8px 12px;
+    border-radius: 6px;
+    word-break: break-all;
+    text-align: center;
+    border: 1px solid var(--border);
+    max-width: 300px;
+  }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.05;
+    transform: translate(20px, 20px);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    margin-top: 4px;
+    background: linear-gradient(135deg, var(--text), var(--text2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-accent { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+
+  /* Table */
+  .table-wrapper { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 12px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(42,42,61,0.5);
+    color: var(--text);
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(108,99,255,0.04); }
+
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .tag-blue { background: rgba(108,99,255,0.15); color: var(--accent); }
+  .tag-green { background: rgba(0,212,170,0.15); color: var(--accent3); }
+  .tag-pink { background: rgba(255,107,157,0.15); color: var(--accent2); }
+
+  /* Registration modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+    animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .close-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s;
+  }
+
+  .close-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Success animation */
+  .success-toast {
+    position: fixed;
+    bottom: 32px; right: 32px;
+    background: linear-gradient(135deg, #00d4aa, #00b894);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 30px rgba(0,212,170,0.4);
+    z-index: 9999;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text2);
+  }
+
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; }
+
+  /* Meeting selector */
+  .meeting-selector {
+    background: linear-gradient(135deg, rgba(108,99,255,0.1), rgba(255,107,157,0.05));
+    border: 1px solid rgba(108,99,255,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .meeting-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .meeting-name {
+    font-size: 16px;
+    font-weight: 700;
+    flex: 1;
+  }
+
+  /* Separator */
+  .sep { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+    .tabs { padding: 12px 16px 0; overflow-x: auto; }
+    header { padding: 16px; }
+  }
+
+  .row-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .pulse {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--accent3);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: gap;
+    gap: 12px;
+  }
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .action-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📋</div>
+      <div>
+        <h1>AttendanceQR</h1>
+        <span>Sistema de Asistencia</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-success btn-sm" onclick="exportExcel()">
+        ⬇ Exportar Excel
+      </button>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard')">
+      📊 Dashboard
+    </button>
+    <button class="tab" onclick="switchTab('meeting')">
+      ⚙️ Configurar Reunión
+    </button>
+    <button class="tab" onclick="switchTab('register')">
+      📲 Registro Manual
+    </button>
+    <button class="tab" onclick="switchTab('qr')">
+      🔲 Código QR
+    </button>
+    <button class="tab" id="tab-scan" onclick="switchTab('scan')">
+      📷 Escanear QR
+    </button>
+  </div>
+
+  <!-- Main -->
+  <main>
+
+    <!-- DASHBOARD -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="meeting-selector" id="current-meeting-banner">
+        <span class="meeting-label">Reunión activa</span>
+        <span class="meeting-name" id="banner-meeting-name">Sin configurar</span>
+        <span class="tag tag-blue" id="banner-date">—</span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Asistentes</div>
+          <div class="stat-value stat-accent" id="stat-total">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Hoy</div>
+          <div class="stat-value" id="stat-today">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Reuniones</div>
+          <div class="stat-value" id="stat-meetings">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Última entrada</div>
+          <div class="stat-value" style="font-size:18px" id="stat-last">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <div class="card-title">Lista de Asistencia</div>
+          <div class="action-row">
+            <select id="filter-meeting" onchange="renderTable()" style="width:auto;padding:8px 12px;font-size:13px;">
+              <option value="">Todas las reuniones</option>
+            </select>
+            <button class="btn btn-danger btn-sm" onclick="clearAll()">🗑 Limpiar</button>
+            <button class="btn btn-success btn-sm" onclick="exportExcel()">⬇ Excel</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="attendance-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nombre Completo</th>
+                <th>Puesto de Trabajo</th>
+                <th>Reunión</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <tr>
+                <td colspan="7">
+                  <div class="empty-state">
+                    <div class="icon">📭</div>
+                    <h3>Sin registros aún</h3>
+                    <p>Escanea el QR o usa el registro manual para agregar asistentes.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIGURAR REUNIÓN -->
+    <div class="tab-content" id="tab-meeting">
+      <div class="section-header">
+        <h2 class="section-title">⚙️ Configurar Reunión</h2>
+      </div>
+
+      <div class="grid-2" style="align-items:start;">
+        <div>
+          <div class="card">
+            <div class="card-title">Nueva Reunión</div>
+            <div class="form-group">
+              <label>Nombre de la Reunión *</label>
+              <input type="text" id="meeting-name" placeholder="Ej: Reunión de Presupuesto Q3" />
+            </div>
+            <div class="form-group">
+              <label>Fecha *</label>
+              <input type="date" id="meeting-date" />
+            </div>
+            <div class="form-group">
+              <label>Hora de Inicio</label>
+              <input type="time" id="meeting-time" />
+            </div>
+            <div class="form-group">
+              <label>Lugar / Sala</label>
+              <input type="text" id="meeting-place" placeholder="Ej: Sala de Conferencias A" />
+            </div>
+            <div class="form-group">
+              <label>Descripción</label>
+              <textarea id="meeting-desc" rows="3" placeholder="Descripción opcional..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="saveMeeting()" style="width:100%;">✓ Activar Reunión</button>
+          </div>
+
+          <div class="card" style="margin-top:16px;">
+            <div class="card-title">Reuniones Guardadas</div>
+            <div id="saved-meetings-list">
+              <div class="empty-state" style="padding:30px 20px;">
+                <div class="icon">📅</div>
+                <p>No hay reuniones creadas.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Reunión Activa</div>
+          <div id="active-meeting-info">
+            <div class="empty-state" style="padding:30px 20px;">
+              <div class="icon">🎯</div>
+              <h3>Sin reunión activa</h3>
+              <p>Crea y activa una reunión para comenzar.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGISTRO MANUAL -->
+    <div class="tab-content" id="tab-register">
+      <div class="section-header">
+        <h2 class="section-title">📲 Registro de Asistente</h2>
+      </div>
+
+      <div class="grid-2" style="align-items:start;">
+        <div class="card">
+          <div class="card-title">Datos del Asistente</div>
+          <div class="form-group">
+            <label>Nombre Completo *</label>
+            <input type="text" id="reg-name" placeholder="Ej: María González López" />
+          </div>
+          <div class="form-group">
+            <label>Puesto de Trabajo *</label>
+            <input type="text" id="reg-job" placeholder="Ej: Gerente de Finanzas" list="job-suggestions" />
+            <datalist id="job-suggestions"></datalist>
+          </div>
+          <div class="form-group">
+            <label>Departamento</label>
+            <input type="text" id="reg-dept" placeholder="Ej: Administración" />
+          </div>
+          <div class="form-group">
+            <label>Email (opcional)</label>
+            <input type="email" id="reg-email" placeholder="ejemplo@empresa.com" />
+          </div>
+          <div class="form-group">
+            <label>Reunión</label>
+            <select id="reg-meeting">
+              <option value="">— Seleccionar reunión —</option>
+            </select>
+          </div>
+          <button class="btn btn-success" onclick="registerAttendee()" style="width:100%;margin-top:8px;">
+            ✓ Registrar Asistencia
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Últimos Registros</div>
+          <div id="recent-list" style="max-height:400px;overflow-y:auto;">
+            <div class="empty-state" style="padding:40px 20px;">
+              <div class="icon">🕐</div>
+              <p>Los últimos registros aparecerán aquí.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR CODE -->
+    <div class="tab-content" id="tab-qr">
+      <div class="section-header">
+        <h2 class="section-title">🔲 Código QR de Registro</h2>
+      </div>
+
+      <div class="grid-2" style="align-items:start;">
+        <div class="card">
+          <div class="card-title">Generar QR</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">
+            El código QR permite a los asistentes registrarse directamente desde su teléfono accediendo al formulario de registro.
+          </p>
+          <div class="form-group">
+            <label>Reunión para el QR</label>
+            <select id="qr-meeting-select" onchange="generateQR()">
+              <option value="">— Seleccionar —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tamaño del QR</label>
+            <select id="qr-size" onchange="generateQR()">
+              <option value="200">Pequeño (200px)</option>
+              <option value="256" selected>Mediano (256px)</option>
+              <option value="320">Grande (320px)</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="generateQR()" style="width:100%;">🔄 Generar QR</button>
+          <button class="btn btn-outline" onclick="printQR()" style="width:100%;margin-top:8px;">🖨 Imprimir QR</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Vista Previa del QR</div>
+          <div class="qr-container" id="qr-preview">
+            <div class="empty-state" style="padding:40px 20px;">
+              <div class="icon">🔲</div>
+              <p>Selecciona una reunión para generar el QR.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCAN (formulario de registro por QR) -->
+    <div class="tab-content" id="tab-scan">
+      <div style="max-width:480px;margin:0 auto;">
+        <div class="card">
+          <div style="text-align:center;margin-bottom:24px;">
+            <div style="font-size:48px;margin-bottom:12px;">📋</div>
+            <h2 style="font-size:24px;font-weight:700;margin-bottom:6px;">Registro de Asistencia</h2>
+            <p style="color:var(--text2);font-size:13px;" id="scan-meeting-name">Completa tus datos para registrar tu asistencia</p>
+          </div>
+
+          <div class="form-group">
+            <label>Nombre Completo *</label>
+            <input type="text" id="scan-name" placeholder="Tu nombre completo" />
+          </div>
+          <div class="form-group">
+            <label>Puesto de Trabajo *</label>
+            <input type="text" id="scan-job" placeholder="Tu puesto / cargo" />
+          </div>
+          <div class="form-group">
+            <label>Departamento</label>
+            <input type="text" id="scan-dept" placeholder="Tu departamento" />
+          </div>
+          <div class="form-group">
+            <label>Email (opcional)</label>
+            <input type="email" id="scan-email" placeholder="tu@email.com" />
+          </div>
+          <input type="hidden" id="scan-meeting-id" value="" />
+
+          <button class="btn btn-success" onclick="registerFromScan()" style="width:100%;padding:14px;font-size:16px;">
+            ✓ Confirmar Asistencia
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal de éxito -->
+<div class="modal-overlay" id="success-modal">
+  <div class="modal" style="text-align:center;max-width:360px;">
+    <div style="font-size:64px;margin-bottom:16px;">✅</div>
+    <h2 style="font-size:24px;font-weight:700;color:var(--accent3);margin-bottom:8px;">¡Registrado!</h2>
+    <p style="color:var(--text2);margin-bottom:24px;" id="success-msg">Tu asistencia fue registrada correctamente.</p>
+    <button class="btn btn-success" onclick="closeModal('success-modal')" style="width:100%;">Cerrar</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="success-toast" id="toast">
+  <span>✓</span>
+  <span id="toast-msg">¡Asistencia registrada!</span>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = {
+  meetings: [],
+  attendees: [],
+  activeMeeting: null
+};
+
+// Load from localStorage
+function loadState() {
+  try {
+    const saved = localStorage.getItem('attendanceQR_state');
+    if (saved) state = JSON.parse(saved);
+  } catch(e) {}
+}
+
+function saveState() {
+  localStorage.setItem('attendanceQR_state', JSON.stringify(state));
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.onload = function() {
+  loadState();
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('scan')) {
+    const mid = params.get('meeting');
+    document.getElementById('scan-meeting-id').value = mid || '';
+    if (mid) {
+      const m = state.meetings.find(x => x.id === mid);
+      if (m) document.getElementById('scan-meeting-name').textContent = '📅 ' + m.name;
+    }
+    switchTab('scan');
+  } else {
+    updateUI();
+  }
+  // Set today's date
+  document.getElementById('meeting-date').value = today();
+};
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}
+
+function nowDate() {
+  return new Date().toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  const tabs = document.querySelectorAll('.tab');
+  const names = ['dashboard','meeting','register','qr','scan'];
+  tabs[names.indexOf(id)]?.classList.add('active');
+  if (id === 'qr') refreshQRSelects();
+  if (id === 'register') refreshRegisterSelects();
+  if (id === 'dashboard') renderTable();
+}
+
+// ─── MEETINGS ─────────────────────────────────────────────────────────────────
+function saveMeeting() {
+  const name = document.getElementById('meeting-name').value.trim();
+  const date = document.getElementById('meeting-date').value;
+  if (!name || !date) { showToast('⚠ Completa Nombre y Fecha', '#ffd166'); return; }
+
+  const meeting = {
+    id: 'mtg_' + Date.now(),
+    name,
+    date,
+    time: document.getElementById('meeting-time').value,
+    place: document.getElementById('meeting-place').value.trim(),
+    desc: document.getElementById('meeting-desc').value.trim(),
+    created: new Date().toISOString()
+  };
+
+  state.meetings.push(meeting);
+  state.activeMeeting = meeting.id;
+  saveState();
+  updateUI();
+  showToast('✓ Reunión activada: ' + name);
+  // Clear form
+  ['meeting-name','meeting-time','meeting-place','meeting-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('meeting-date').value = today();
+}
+
+function activateMeeting(id) {
+  state.activeMeeting = id;
+  saveState();
+  updateUI();
+  showToast('✓ Reunión activa cambiada');
+}
+
+function deleteMeeting(id) {
+  if (!confirm('¿Eliminar esta reunión? Se eliminarán también sus asistentes.')) return;
+  state.meetings = state.meetings.filter(m => m.id !== id);
+  state.attendees = state.attendees.filter(a => a.meetingId !== id);
+  if (state.activeMeeting === id) state.activeMeeting = null;
+  saveState();
+  updateUI();
+}
+
+// ─── REGISTER ─────────────────────────────────────────────────────────────────
+function registerAttendee() {
+  const name = document.getElementById('reg-name').value.trim();
+  const job = document.getElementById('reg-job').value.trim();
+  const dept = document.getElementById('reg-dept').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const meetingId = document.getElementById('reg-meeting').value || state.activeMeeting;
+
+  if (!name || !job) { showToast('⚠ Nombre y Puesto son obligatorios', '#ffd166'); return; }
+
+  addAttendee({ name, job, dept, email, meetingId });
+  document.getElementById('reg-name').value = '';
+  document.getElementById('reg-job').value = '';
+  document.getElementById('reg-dept').value = '';
+  document.getElementById('reg-email').value = '';
+  showToast('✓ ' + name + ' registrado/a');
+}
+
+function registerFromScan() {
+  const name = document.getElementById('scan-name').value.trim();
+  const job = document.getElementById('scan-job').value.trim();
+  const dept = document.getElementById('scan-dept').value.trim();
+  const email = document.getElementById('scan-email').value.trim();
+  const meetingId = document.getElementById('scan-meeting-id').value || state.activeMeeting;
+
+  if (!name || !job) { showToast('⚠ Nombre y Puesto son obligatorios', '#ffd166'); return; }
+
+  addAttendee({ name, job, dept, email, meetingId });
+  document.getElementById('success-msg').textContent = '¡Hola, ' + name + '! Tu asistencia fue registrada correctamente.';
+  document.getElementById('success-modal').classList.add('active');
+  document.getElementById('scan-name').value = '';
+  document.getElementById('scan-job').value = '';
+  document.getElementById('scan-dept').value = '';
+  document.getElementById('scan-email').value = '';
+}
+
+function addAttendee({ name, job, dept, email, meetingId }) {
+  const now = new Date();
+  const attendee = {
+    id: 'att_' + Date.now(),
+    name,
+    job,
+    dept: dept || '',
+    email: email || '',
+    meetingId: meetingId || '',
+    date: now.toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    time: now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    timestamp: now.toISOString()
+  };
+  state.attendees.push(attendee);
+  saveState();
+  updateUI();
+}
+
+// ─── QR ───────────────────────────────────────────────────────────────────────
+function generateQR() {
+  const meetingId = document.getElementById('qr-meeting-select').value;
+  const size = parseInt(document.getElementById('qr-size').value);
+  const container = document.getElementById('qr-preview');
+
+  if (!meetingId) {
+    container.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><div class="icon">🔲</div><p>Selecciona una reunión para generar el QR.</p></div>';
+    return;
+  }
+
+  const meeting = state.meetings.find(m => m.id === meetingId);
+  const baseUrl = window.location.href.split('?')[0];
+  const url = baseUrl + '?scan=1&meeting=' + encodeURIComponent(meetingId);
+
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:16px;';
+
+  const qrDiv = document.createElement('div');
+  qrDiv.id = 'qr-code';
+  wrapper.appendChild(qrDiv);
+
+  if (meeting) {
+    const mtgLabel = document.createElement('div');
+    mtgLabel.style.cssText = 'text-align:center;';
+    mtgLabel.innerHTML = `<div style="font-weight:700;font-size:16px;">${meeting.name}</div>
+      <div style="color:var(--text2);font-size:12px;margin-top:4px;">${meeting.date}${meeting.place ? ' · ' + meeting.place : ''}</div>`;
+    wrapper.appendChild(mtgLabel);
+  }
+
+  const urlLabel = document.createElement('div');
+  urlLabel.className = 'qr-url';
+  urlLabel.textContent = url;
+  wrapper.appendChild(urlLabel);
+
+  container.appendChild(wrapper);
+
+  new QRCode(qrDiv, {
+    text: url,
+    width: size,
+    height: size,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
+function printQR() {
+  const content = document.getElementById('qr-preview').innerHTML;
+  const meetId = document.getElementById('qr-meeting-select').value;
+  const meeting = state.meetings.find(m => m.id === meetId);
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html><head><title>QR Asistencia</title>
+    <style>
+      body { font-family: Arial, sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#fff; }
+      h1 { font-size:28px; margin-bottom:8px; }
+      p { color:#666; font-size:14px; margin:4px 0; }
+      img { border:1px solid #eee; border-radius:8px; }
+      .instructions { margin-top:20px; font-size:14px; color:#444; text-align:center; max-width:280px; }
+    </style></head>
+    <body>
+      <h1>${meeting ? meeting.name : 'Registro de Asistencia'}</h1>
+      ${meeting ? `<p>📅 ${meeting.date}${meeting.time ? ' ' + meeting.time : ''}${meeting.place ? ' &nbsp;|&nbsp; 📍 ' + meeting.place : ''}</p>` : ''}
+      <div style="margin:24px 0">${content}</div>
+      <div class="instructions">Escanea el código QR con tu teléfono para registrar tu asistencia</div>
+    </body></html>`);
+  printWindow.document.close();
+  setTimeout(() => printWindow.print(), 500);
+}
+
+// ─── UI UPDATE ────────────────────────────────────────────────────────────────
+function updateUI() {
+  updateStats();
+  updateBanner();
+  renderTable();
+  renderSavedMeetings();
+  renderActiveMeeting();
+  renderRecentList();
+  refreshRegisterSelects();
+  refreshQRSelects();
+  updateFilterSelect();
+}
+
+function updateStats() {
+  const todayStr = nowDate();
+  document.getElementById('stat-total').textContent = state.attendees.length;
+  document.getElementById('stat-today').textContent = state.attendees.filter(a => a.date === todayStr).length;
+  document.getElementById('stat-meetings').textContent = state.meetings.length;
+  const last = state.attendees[state.attendees.length - 1];
+  document.getElementById('stat-last').textContent = last ? last.time : '—';
+}
+
+function updateBanner() {
+  if (state.activeMeeting) {
+    const m = state.meetings.find(x => x.id === state.activeMeeting);
+    if (m) {
+      document.getElementById('banner-meeting-name').textContent = m.name;
+      document.getElementById('banner-date').textContent = '📅 ' + m.date;
+      return;
+    }
+  }
+  document.getElementById('banner-meeting-name').textContent = 'Sin configurar';
+  document.getElementById('banner-date').textContent = '—';
+}
+
+function renderTable() {
+  const filter = document.getElementById('filter-meeting')?.value || '';
+  const tbody = document.getElementById('table-body');
+  let data = filter ? state.attendees.filter(a => a.meetingId === filter) : [...state.attendees];
+  data = data.reverse();
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📭</div><h3>Sin registros aún</h3><p>Escanea el QR o usa el registro manual para agregar asistentes.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map((a, i) => {
+    const meeting = state.meetings.find(m => m.id === a.meetingId);
+    const colors = ['tag-blue','tag-green','tag-pink'];
+    const colorIdx = state.meetings.findIndex(m => m.id === a.meetingId) % 3;
+    return `<tr>
+      <td class="row-num">${data.length - i}</td>
+      <td><strong>${a.name}</strong>${a.dept ? `<br><span style="font-size:11px;color:var(--text2)">${a.dept}</span>` : ''}</td>
+      <td>${a.job}</td>
+      <td>${meeting ? `<span class="tag ${colors[colorIdx]}">${meeting.name}</span>` : '<span style="color:var(--text2)">—</span>'}</td>
+      <td>${a.date}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${a.time}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteAttendee('${a.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSavedMeetings() {
+  const container = document.getElementById('saved-meetings-list');
+  if (!state.meetings.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:30px 20px;"><div class="icon">📅</div><p>No hay reuniones creadas.</p></div>';
+    return;
+  }
+  container.innerHTML = state.meetings.map(m => {
+    const count = state.attendees.filter(a => a.meetingId === m.id).length;
+    const isActive = state.activeMeeting === m.id;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};border-radius:10px;margin-bottom:8px;background:${isActive ? 'rgba(108,99,255,0.08)' : 'var(--surface2)'};">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isActive ? '<span class="pulse"></span>' : ''}${m.name}</div>
+        <div style="font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;">${m.date}${m.place ? ' · ' + m.place : ''} · ${count} asistente${count !== 1 ? 's' : ''}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="activateMeeting('${m.id}')" title="Activar">${isActive ? '✓ Activa' : 'Activar'}</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${m.id}')" title="Eliminar">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderActiveMeeting() {
+  const container = document.getElementById('active-meeting-info');
+  if (!state.activeMeeting) {
+    container.innerHTML = '<div class="empty-state" style="padding:30px 20px;"><div class="icon">🎯</div><h3>Sin reunión activa</h3><p>Crea y activa una reunión para comenzar.</p></div>';
+    return;
+  }
+  const m = state.meetings.find(x => x.id === state.activeMeeting);
+  if (!m) return;
+  const count = state.attendees.filter(a => a.meetingId === m.id).length;
+  container.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <span class="pulse"></span><span style="font-size:11px;color:var(--accent3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;">ACTIVA</span>
+    </div>
+    <div style="font-size:22px;font-weight:700;margin-bottom:12px;">${m.name}</div>
+    <div style="display:grid;gap:8px;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;font-size:13px;"><span style="color:var(--text2);">📅 Fecha:</span><strong>${m.date}</strong></div>
+      ${m.time ? `<div style="display:flex;gap:8px;font-size:13px;"><span style="color:var(--text2);">🕐 Hora:</span><strong>${m.time}</strong></div>` : ''}
+      ${m.place ? `<div style="display:flex;gap:8px;font-size:13px;"><span style="color:var(--text2);">📍 Lugar:</span><strong>${m.place}</strong></div>` : ''}
+    </div>
+    <hr class="sep">
+    <div style="text-align:center;">
+      <div style="font-size:48px;font-weight:700;color:var(--accent);">${count}</div>
+      <div style="font-size:13px;color:var(--text2);">Asistentes registrados</div>
+    </div>
+    ${m.desc ? `<hr class="sep"><p style="font-size:13px;color:var(--text2);">${m.desc}</p>` : ''}
+  `;
+}
+
+function renderRecentList() {
+  const container = document.getElementById('recent-list');
+  const recent = [...state.attendees].reverse().slice(0, 8);
+  if (!recent.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><div class="icon">🕐</div><p>Los últimos registros aparecerán aquí.</p></div>';
+    return;
+  }
+  container.innerHTML = recent.map(a => {
+    const m = state.meetings.find(x => x.id === a.meetingId);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">${a.name[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.name}</div>
+        <div style="font-size:11px;color:var(--text2);">${a.job}${m ? ' · ' + m.name : ''}</div>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);flex-shrink:0;">${a.time}</div>
+    </div>`;
+  }).join('');
+}
+
+function refreshRegisterSelects() {
+  const sel = document.getElementById('reg-meeting');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Seleccionar reunión —</option>' +
+    state.meetings.map(m => `<option value="${m.id}" ${m.id === state.activeMeeting ? 'selected' : ''}>${m.name} (${m.date})</option>`).join('');
+  // Update job datalist
+  const jobs = [...new Set(state.attendees.map(a => a.job))];
+  document.getElementById('job-suggestions').innerHTML = jobs.map(j => `<option value="${j}">`).join('');
+}
+
+function refreshQRSelects() {
+  const sel = document.getElementById('qr-meeting-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
+    state.meetings.map(m => `<option value="${m.id}" ${m.id === state.activeMeeting ? 'selected' : ''}>${m.name} (${m.date})</option>`).join('');
+  if (state.activeMeeting) {
+    sel.value = state.activeMeeting;
+    generateQR();
+  }
+}
+
+function updateFilterSelect() {
+  const sel = document.getElementById('filter-meeting');
+  if (!sel) return;
+  const curr = sel.value;
+  sel.innerHTML = '<option value="">Todas las reuniones</option>' +
+    state.meetings.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  sel.value = curr;
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+function deleteAttendee(id) {
+  state.attendees = state.attendees.filter(a => a.id !== id);
+  saveState();
+  updateUI();
+}
+
+function clearAll() {
+  if (!confirm('¿Eliminar todos los registros de asistencia?')) return;
+  state.attendees = [];
+  saveState();
+  updateUI();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function showToast(msg, bg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.style.background = bg || 'linear-gradient(135deg, #00d4aa, #00b894)';
+  t.style.display = 'flex';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+// ─── EXPORT EXCEL ─────────────────────────────────────────────────────────────
+function exportExcel() {
+  if (!state.attendees.length) { showToast('⚠ No hay datos para exportar', '#ffd166'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: All attendees
+  const data = state.attendees.map((a, i) => {
+    const m = state.meetings.find(x => x.id === a.meetingId);
+    return {
+      'N°': i + 1,
+      'Nombre Completo': a.name,
+      'Puesto de Trabajo': a.job,
+      'Departamento': a.dept || '',
+      'Email': a.email || '',
+      'Nombre de la Reunión': m ? m.name : '',
+      'Lugar / Sala': m ? (m.place || '') : '',
+      'Fecha': a.date,
+      'Hora': a.time
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+
+  // Column widths
+  ws['!cols'] = [
+    {wch: 5}, {wch: 28}, {wch: 24}, {wch: 20}, {wch: 28},
+    {wch: 30}, {wch: 20}, {wch: 12}, {wch: 10}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Asistencia General');
+
+  // Sheet per meeting
+  state.meetings.forEach(m => {
+    const mData = state.attendees
+      .filter(a => a.meetingId === m.id)
+      .map((a, i) => ({
+        'N°': i + 1,
+        'Nombre Completo': a.name,
+        'Puesto de Trabajo': a.job,
+        'Departamento': a.dept || '',
+        'Email': a.email || '',
+        'Nombre de la Reunión': m.name,
+        'Lugar / Sala': m.place || '',
+        'Fecha de la Reunión': m.date,
+        'Hora de Entrada': a.time
+      }));
+
+    if (mData.length) {
+      const mws = XLSX.utils.json_to_sheet(mData);
+      mws['!cols'] = [{wch:5},{wch:28},{wch:24},{wch:20},{wch:28},{wch:30},{wch:20},{wch:14},{wch:12}];
+      const sheetName = m.name.replace(/[:\\/?*\[\]]/g, '').substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, mws, sheetName);
+    }
+  });
+
+  const now = new Date();
+  const filename = `Asistencia_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('✓ Excel exportado: ' + filename);
+}
+</script>
+</body>
+</html>
